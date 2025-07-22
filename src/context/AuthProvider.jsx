@@ -3,6 +3,8 @@ import { useEffect, useState } from 'react';
 import { AuthContext } from './AuthContext';
 import { auth } from '../firebase/firebase.config';
 
+
+
 const AuthProvider = ({ children }) => {
     const googleProvider = new GoogleAuthProvider();
 
@@ -24,10 +26,16 @@ const AuthProvider = ({ children }) => {
         return signInWithPopup(auth, googleProvider);
     };
 
-    const signOutUser = () => {
-        setLoding(true);
-        return signOut(auth);
-    };
+
+
+  const signOutUser = async () => {
+    setLoding(true);
+    await signOut(auth);
+    localStorage.removeItem("accessToken");
+    setLoding(false);
+    setUser(null);
+  };
+
 
     useEffect(() => {
         const unSubscribe = onAuthStateChanged(auth, currentUser => {

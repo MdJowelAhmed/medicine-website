@@ -1,48 +1,62 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { EyeIcon } from '@heroicons/react/24/outline';
+import axios from 'axios';
 
-const medicines = [
-  {
-    id: 1,
-    name: 'Paracetamol',
-    manufacturer: 'HealthCorp',
-    price: 5,
-    stock: 50,
-    description: 'Used to treat pain and fever.',
-    image: 'https://i.ibb.co/2c6vP8h/paracetamol.jpg',
-  },
-  {
-    id: 2,
-    name: 'Amoxicillin',
-    manufacturer: 'Pharma Inc.',
-    price: 12,
-    stock: 30,
-    description: 'Antibiotic for bacterial infections.',
-    image: 'https://i.ibb.co/wLzSZxZ/amoxicillin.jpg',
-  },
-  {
-    id: 3,
-    name: 'Ibuprofen',
-    manufacturer: 'MediHealth',
-    price: 8,
-    stock: 40,
-    description: 'Pain reliever and anti-inflammatory.',
-    image: 'https://i.ibb.co/71mGKnf/ibuprofen.jpg',
-  },
-  {
-    id: 4,
-    name: 'Cetirizine',
-    manufacturer: 'AllergyPharma',
-    price: 7,
-    stock: 25,
-    description: 'Antihistamine for allergies.',
-    image: 'https://i.ibb.co/mFhNhvy/cetirizine.jpg',
-  },
-];
+// const medicines = [
+//   {
+//     id: 1,
+//     name: 'Paracetamol',
+//     manufacturer: 'HealthCorp',
+//     price: 5,
+//     stock: 50,
+//     description: 'Used to treat pain and fever.',
+//     image: 'https://i.ibb.co/2c6vP8h/paracetamol.jpg',
+//   },
+//   {
+//     id: 2,
+//     name: 'Amoxicillin',
+//     manufacturer: 'Pharma Inc.',
+//     price: 12,
+//     stock: 30,
+//     description: 'Antibiotic for bacterial infections.',
+//     image: 'https://i.ibb.co/wLzSZxZ/amoxicillin.jpg',
+//   },
+//   {
+//     id: 3,
+//     name: 'Ibuprofen',
+//     manufacturer: 'MediHealth',
+//     price: 8,
+//     stock: 40,
+//     description: 'Pain reliever and anti-inflammatory.',
+//     image: 'https://i.ibb.co/71mGKnf/ibuprofen.jpg',
+//   },
+//   {
+//     id: 4,
+//     name: 'Cetirizine',
+//     manufacturer: 'AllergyPharma',
+//     price: 7,
+//     stock: 25,
+//     description: 'Antihistamine for allergies.',
+//     image: 'https://i.ibb.co/mFhNhvy/cetirizine.jpg',
+//   },
+// ];
 
 const ShopPage = () => {
   const [selectedMedicine, setSelectedMedicine] = useState(null);
   const [cart, setCart] = useState([]);
+  const [allMedicines, setAllMedicines] = useState([]);
+
+  useEffect(() => {
+    axios.get("http://localhost:5000/products")
+      .then(res => {
+        setAllMedicines(res.data);
+      })
+      .catch(err => {
+        console.error("Data fetch error:", err);
+      });
+  }, []);
+console.log(allMedicines);
+const medicines = allMedicines?.data
 
   const handleSelect = (medicine) => {
     if (cart.find((item) => item.id === medicine.id)) return;
@@ -70,10 +84,10 @@ const ShopPage = () => {
               </tr>
             </thead>
             <tbody>
-              {medicines.map((med) => (
+              {medicines?.map((med) => (
                 <tr key={med.id} className="hover:bg-gray-100">
                   <td className="border border-gray-300 px-4 py-2 font-medium">{med.name}</td>
-                  <td className="border border-gray-300 px-4 py-2">{med.manufacturer}</td>
+                  <td className="border border-gray-300 px-4 py-2">{med.company}</td>
                   <td className="border border-gray-300 px-4 py-2">MediMart</td>
                   <td className="border border-gray-300 px-4 py-2">${med.price}</td>
                   <td className="border border-gray-300 px-4 py-2">{med.stock}</td>

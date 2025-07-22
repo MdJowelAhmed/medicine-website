@@ -3,6 +3,7 @@ import login from '../../assets/login.json';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useContext } from 'react';
 import { AuthContext } from '../../context/AuthContext';
+import axios from 'axios';
 
 const Login = () => {
   const { signInUser } = useContext(AuthContext);
@@ -17,8 +18,14 @@ const Login = () => {
     const password = form.password.value;
 
     signInUser(email, password)
-      .then((result) => {
-        console.log(result);
+      .then(async (result) => {
+        if(result){
+          const res = await axios.post('http://localhost:5000/login', { email });
+          console.log(res.data.data)
+          localStorage.setItem('accessToken', res.data.data.accessToken);
+          // console.log(res);
+        }
+        // localStorage.setItem('accessToken', result?.user?.accessToken);
         navigate(from);
       })
       .catch((error) => {

@@ -1,7 +1,7 @@
 import Lottie from 'lottie-react';
 import login from '../../assets/login.json';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { useContext } from 'react';
+import { useContext, useState } from 'react';
 import { AuthContext } from '../../context/AuthContext';
 import axios from 'axios';
 
@@ -9,7 +9,7 @@ const Login = () => {
   const { signInUser } = useContext(AuthContext);
   const navigate = useNavigate();
   const location = useLocation();
-  const from = location.state?.from?.pathname || "/";
+  const from = location.state?.from?.pathname || '/';// Default role
 
   const handleSignIn = async (e) => {
     e.preventDefault();
@@ -17,20 +17,17 @@ const Login = () => {
     const email = form.email.value;
     const password = form.password.value;
 
-    signInUser(email, password)
-      .then(async (result) => {
-        if(result){
-          const res = await axios.post('http://localhost:5000/login', { email });
-          console.log(res.data.data)
-          localStorage.setItem('accessToken', res.data.data.accessToken);
-          // console.log(res);
-        }
-        // localStorage.setItem('accessToken', result?.user?.accessToken);
+    try {
+      const result = await signInUser(email, password);
+      if (result) {
+        const res = await axios.post('http://localhost:5000/login', { email });
+        console.log(res.data.data);
+        localStorage.setItem('accessToken', res.data.data.accessToken);
         navigate(from);
-      })
-      .catch((error) => {
-        console.log(error);
-      });
+      }
+    } catch (error) {
+      console.error(error);
+    }
   };
 
   return (
@@ -44,12 +41,33 @@ const Login = () => {
             <form onSubmit={handleSignIn}>
               <fieldset className="fieldset">
                 <h1 className="text-5xl font-bold text-center">Login</h1>
+
+                {/* Email */}
                 <label className="label">Email</label>
-                <input type="email" name="email" className="input" placeholder="Email" />
+                <input type="email" name="email" className="input" placeholder="Email" required />
+
+                {/* Password */}
                 <label className="label">Password</label>
-                <input type="password" name="password" className="input" placeholder="Password" />
+                <input type="password" name="password" className="input" placeholder="Password" required />
+
+                {/* Role Select */}
+                {/* <label className="label">Select Role</label>
+                <select
+                  name="role"
+                  className="select select-bordered w-full"
+                  value={role}
+                  onChange={(e) => setRole(e.target.value)}
+                  required
+                >
+                  <option value="seller">Seller</option>
+                  <option value="user">User</option>
+                </select> */}
+
+                {/* Submit Button */}
                 <button className="btn btn-neutral mt-4 bg-primary border-0">Login</button>
-                <p className="text-center">
+
+                {/* Redirect */}
+                <p className="text-center mt-2">
                   Don't have an account?{' '}
                   <Link to="/register" className="text-primary font-bold">
                     Register
@@ -57,7 +75,6 @@ const Login = () => {
                 </p>
               </fieldset>
             </form>
-            {/* <SocialLogin /> */}
           </div>
         </div>
       </div>

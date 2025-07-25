@@ -7,47 +7,89 @@ import axios from "axios";
 import useAxiosSecure from "./hook/useAxiosSecure";
 import { AuthContext } from "../context/AuthContext";
 
-
 const Navbar = () => {
-  const {  signOutUser } = useContext(AuthContext) || {};
-  const [user,setUser]= useState(null); 
+  const { signOutUser } = useContext(AuthContext) || {};
+  const [user, setUser] = useState(null);
   const [error, setError] = useState(null);
+  const [cartItemCount, setCartItemCount] = useState(0);
   const navigate = useNavigate();
   const token = localStorage.getItem("accessToken");
-  const axiosSecure=useAxiosSecure()
+  const axiosSecure = useAxiosSecure();
 
   console.log(user);
-const fetchUser = async () => {
-  try {
-    const response = await axios.get("http://localhost:5000/profile", {
-      headers: {
-        "Content-Type": "application/json", 
-        Authorization: token,
-      },
-    });
 
-    console.log(response);
+  const fetchUser = async () => {
+    try {
+      const response = await axios.get("http://localhost:5000/profile", {
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: token,
+        },
+      });
 
-    const result = response.data;
+      console.log(response);
 
-    if (result.success) {
-      setUser(result.data);
-    } else {
-      setError(result.message || "Failed to fetch user data");
+      const result = response.data;
+
+      if (result.success) {
+        setUser(result.data);
+      } else {
+        setError(result.message || "Failed to fetch user data");
+      }
+    } catch (err) {
+      setError(
+        "Error connecting to server: " +
+          (err.response?.data?.message || err.message)
+      );
+      console.error("Axios fetch error:", err);
     }
-  } catch (err) {
-    setError(
-      "Error connecting to server: " +
-        (err.response?.data?.message || err.message)
-    );
-    console.error("Axios fetch error:", err);
-  }
-};
+  };
 
-useEffect(() => {
-  fetchUser();
-}, []);
-  console.log(user)
+  const loadCartCount = () => {
+    try {
+      const savedCart = localStorage.getItem('medimart_cart');
+      if (savedCart) {
+        const parsedCart = JSON.parse(savedCart);
+        const totalItems = parsedCart.reduce((total, item) => total + item.quantity, 0);
+        setCartItemCount(totalItems);
+      } else {
+        setCartItemCount(0);
+      }
+    } catch (error) {
+      console.error('Error loading cart count:', error);
+      setCartItemCount(0);
+    }
+  };
+
+  useEffect(() => {
+    fetchUser();
+    loadCartCount();
+
+    // Listen for localStorage changes (when cart is updated)
+    const handleStorageChange = () => {
+      loadCartCount();
+    };
+
+    // Listen for custom cart update events
+    const handleCartUpdate = () => {
+      loadCartCount();
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+    window.addEventListener('cartUpdated', handleCartUpdate);
+
+    // Also check cart count periodically in case of same-tab updates
+    const interval = setInterval(loadCartCount, 1000);
+
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+      window.removeEventListener('cartUpdated', handleCartUpdate);
+      clearInterval(interval);
+    };
+  }, []);
+
+  console.log(user);
+
   const navLinks = (
     <>
       <NavLink
@@ -76,24 +118,30 @@ useEffect(() => {
         to="/cart"
         className={({ isActive }) =>
           isActive
-            ? "text-red-600 font-semibold"
-            : "text-gray-700 hover:text-red-600"
+            ? "text-red-600 font-semibold relative"
+            : "text-gray-700 hover:text-red-600 relative"
         }
       >
         <FaCartShopping className="text-xl" />
+        {cartItemCount > 0 && (
+          <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
+            {cartItemCount > 99 ? '99+' : cartItemCount}
+          </span>
+        )}
       </NavLink>
     </>
   );
 
   const handleLogout = async () => {
     try {
-      await signOutUser();          
+      await signOutUser();
+      // Clear cart on logout if desired
+      // localStorage.removeItem('medimart_cart');
       navigate("/login");
     } catch (err) {
       console.error("Logout failed:", err);
     }
   };
-
 
   const handleDashboardClick = () => {
     if (!user) return;

@@ -1,54 +1,86 @@
 import React, { useEffect, useState } from 'react';
+import useAxiosSecure from '../../components/hook/useAxiosSecure';
+import { FaCheckCircle, FaHourglassHalf, FaMoneyBillWave } from 'react-icons/fa';
 
 const SellerHomePage = () => {
-    const [paidTotal, setPaidTotal] = useState(0);
-    const [pendingTotal, setPendingTotal] = useState(0);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
+    const [sales, setSales] = useState({
+        totalAmount: 0,
+        paidAmount: 0,
+        pendingAmount: 0
+    });
+    const axiosSecure = useAxiosSecure();
 
-    useEffect(() => {
-        // Example static data — replace this with real API call
-        const fetchSalesData = async () => {
-            // Replace with your API logic
-            const exampleOrders = [
-                { price: 1000, status: 'paid' },
-                { price: 800, status: 'pending' },
-                { price: 1500, status: 'paid' },
-            ];
+      useEffect(() => {
+        fetchSalesOverview();
+      }, []);
+    
+      const fetchSalesOverview = async () => {
+        try {
+          setLoading(true);
+          setError(null);
+          const response = await axiosSecure.get("/overview/admin");
+          console.log('Sales data:', response.data);
+    
+          if (response.data.success) {
+            setSales(response.data.data);
+          } else {
+            setError("Failed to fetch sales data");
+          }
+        } catch (err) {
+          setError("Error fetching sales data: " + err.message);
+        } finally {
+          setLoading(false);
+        }
+      };
 
-            const paid = exampleOrders
-                .filter(order => order.status === 'paid')
-                .reduce((sum, order) => sum + order.price, 0);
-            const pending = exampleOrders
-                .filter(order => order.status === 'pending')
-                .reduce((sum, order) => sum + order.price, 0);
-
-            setPaidTotal(paid);
-            setPendingTotal(pending);
-        };
-
-        fetchSalesData();
-    }, []);
+      const { totalAmount, paidAmount, pendingAmount } = sales;
 
     return (
-        <div className="space-y-6">
-            <h1 className="text-3xl font-bold mb-4 text-gray-800 text-center">Welcome Seller</h1>
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div className="bg-green-100 p-6 rounded-xl shadow-md">
-                    <h2 className="text-lg font-semibold text-green-800 mb-2">Total Sales Revenue</h2>
-                    <p className="text-2xl font-bold text-green-900">৳ {paidTotal + pendingTotal}</p>
+         <div className="min-h-screen px-4 py-10 bg-gray-200">
+              <h2 className="text-4xl font-bold text-center text-red-600 mb-10">📊 Seller Dashboard Overview</h2>
+        
+              {error && <p className="text-red-600 text-center mb-4">{error}</p>}
+              {loading ? (
+                <p className="text-center text-gray-700">Loading...</p>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-6xl mx-auto">
+                  {/* Total Revenue */}
+                  <div className="bg-white rounded-xl shadow-lg p-6 border-t-4 border-red-500 transform transition hover:scale-105 duration-300">
+                    <div className="flex items-center gap-4">
+                      <FaMoneyBillWave className="text-4xl text-red-500" />
+                      <div>
+                        <h3 className="text-lg font-semibold text-gray-600">Total Sales Revenue</h3>
+                        <p className="text-3xl font-bold text-gray-800">৳ {totalAmount.toLocaleString()}</p>
+                      </div>
+                    </div>
+                  </div>
+        
+                  {/* Paid Total */}
+                  <div className="bg-white rounded-xl shadow-lg p-6 border-t-4 border-green-500 transform transition hover:scale-105 duration-300">
+                    <div className="flex items-center gap-4">
+                      <FaCheckCircle className="text-4xl text-green-500" />
+                      <div>
+                        <h3 className="text-lg font-semibold text-gray-600">Paid Total</h3>
+                        <p className="text-3xl font-bold text-gray-800">৳ {paidAmount.toLocaleString()}</p>
+                      </div>
+                    </div>
+                  </div>
+        
+                  {/* Pending Total */}
+                  <div className="bg-white rounded-xl shadow-lg p-6 border-t-4 border-yellow-500 transform transition hover:scale-105 duration-300">
+                    <div className="flex items-center gap-4">
+                      <FaHourglassHalf className="text-4xl text-yellow-500" />
+                      <div>
+                        <h3 className="text-lg font-semibold text-gray-600">Pending Total</h3>
+                        <p className="text-3xl font-bold text-gray-800">৳ {pendingAmount.toLocaleString()}</p>
+                      </div>
+                    </div>
+                  </div>
                 </div>
-
-                <div className="bg-blue-100 p-6 rounded-xl shadow-md">
-                    <h2 className="text-lg font-semibold text-blue-800 mb-2">Paid Total</h2>
-                    <p className="text-2xl font-bold text-blue-900">৳ {paidTotal}</p>
-                </div>
-
-                <div className="bg-yellow-100 p-6 rounded-xl shadow-md">
-                    <h2 className="text-lg font-semibold text-yellow-800 mb-2">Pending Total</h2>
-                    <p className="text-2xl font-bold text-yellow-900">৳ {pendingTotal}</p>
-                </div>
+              )}
             </div>
-        </div>
     );
 };
 

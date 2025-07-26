@@ -28,8 +28,23 @@ const ManageMedicines = () => {
   
   // Search and filter state
   const [searchTerm, setSearchTerm] = useState('');
+  const [categories, setCategories] = useState([]);
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [companyFilter, setCompanyFilter] = useState('all');
+  
+  // Static company list
+  const staticCompanies = [
+    'Square Pharmaceuticals',
+    'Beximco Pharmaceuticals',
+    'Incepta Pharmaceuticals',
+    'Opsonin Pharma',
+    'Renata Limited',
+    'ACI Limited',
+    'Healthcare Pharmaceuticals',
+    'IBN SINA Pharmaceutical',
+    'ACME Laboratories',
+    'Popular Pharmaceuticals'
+  ];
   
   const token = localStorage.getItem('accessToken');
   const axiosSecure = useAxiosSecure();
@@ -70,10 +85,31 @@ const ManageMedicines = () => {
     fetchMedicines();
   }, []);
 
+  // Fetch categories from API
+  useEffect(() => {
+    fetchCategories();
+  }, []);
+
   // Apply filters and search whenever medicines, searchTerm, or filters change
   useEffect(() => {
     filterMedicines();
   }, [medicines, searchTerm, categoryFilter, companyFilter]);
+
+  const fetchCategories = async () => {
+    try {
+      const response = await axiosSecure.get("/categories");
+      const result = response.data;
+
+      if (result.success) {
+        setCategories(result.data);
+      } else {
+        setError(result.message || "Failed to fetch categories");
+      }
+    } catch (err) {
+      setError("Error connecting to server: " + err.message);
+      console.error("Fetch categories error:", err);
+    }
+  };
 
   const fetchMedicines = async () => {
     try {
@@ -108,6 +144,11 @@ const ManageMedicines = () => {
       );
     }
 
+    // Apply category filter
+    if (categoryFilter !== 'all') {
+      filtered = filtered.filter(med => med.category === categoryFilter);
+    }
+
     // Apply company filter
     if (companyFilter !== 'all') {
       filtered = filtered.filter(med => med.company === companyFilter);
@@ -117,19 +158,21 @@ const ManageMedicines = () => {
     setCurrentPage(1); // Reset to first page when filters change
   };
 
-  // Get unique categories and companies for filter dropdowns
-  const getUniqueValues = (key) => {
-    const unique = [...new Set(medicines.map(item => item[key]))];
-    return unique.filter(item => item); // Remove empty/null values
-  };
-
-  const categories = getUniqueValues('category');
-  const companies = getUniqueValues('company');
-
   // Handle form field changes
   const handleChange = (e) => {
     const { name, value } = e.target;
     setNewMedicine(prev => ({ ...prev, [name]: value }));
+  };
+
+  // Handle category selection in form
+  const handleCategoryChange = (e) => {
+    const selectedCategoryId = e.target.value;
+    const selectedCategory = categories.find(cat => cat._id === selectedCategoryId);
+    
+    setNewMedicine(prev => ({ 
+      ...prev, 
+      category: selectedCategory ? selectedCategory._id : '' 
+    }));
   };
 
   // Handle image file selection
@@ -216,7 +259,7 @@ const ManageMedicines = () => {
         genericName: genericName.trim(),
         description: description.trim(),
         image: imageUrl,
-        category: category.trim(),
+        category: category.trim(), // This will be the category ID
         company: company.trim(),
         massUnit: massUnit.trim(),
         price: Number(price),
@@ -265,6 +308,12 @@ const ManageMedicines = () => {
     });
   };
 
+  // Get category name by ID
+  const getCategoryName = (categoryId) => {
+    const category = categories.find(cat => cat._id === categoryId);
+    return category ? category.name : categoryId;
+  };
+
   // Pagination logic
   const indexOfLastItem = currentPage * itemsPerPage;
   const indexOfFirstItem = indexOfLastItem - itemsPerPage;
@@ -311,7 +360,22 @@ const ManageMedicines = () => {
             />
           </div>
 
-       
+          {/* Category Filter */}
+          <div>
+            <label className="block font-semibold mb-1">Category</label>
+            <select
+              value={categoryFilter}
+              onChange={(e) => setCategoryFilter(e.target.value)}
+              className="w-full border px-3 py-2 rounded"
+            >
+              <option value="all">All Categories</option>
+              {categories.map((category) => (
+                <option key={category._id} value={category._id}>
+                  {category.name}
+                </option>
+              ))}
+            </select>
+          </div>
 
           {/* Company Filter */}
           <div>
@@ -322,28 +386,13 @@ const ManageMedicines = () => {
               className="w-full border px-3 py-2 rounded"
             >
               <option value="all">All Companies</option>
-              {companies.map((company) => (
+              {staticCompanies.map((company) => (
                 <option key={company} value={company}>
                   {company}
                 </option>
               ))}
             </select>
           </div>
-
-          {/* Items per page */}
-          {/* <div>
-            <label className="block font-semibold mb-1">Items per page</label>
-            <select
-              value={itemsPerPage}
-              onChange={(e) => setItemsPerPage(Number(e.target.value))}
-              className="w-full border px-3 py-2 rounded"
-            >
-              <option value="5">5</option>
-              <option value="10">10</option>
-              <option value="20">20</option>
-              <option value="50">50</option>
-            </select>
-          </div> */}
         </div>
       </div>
 
@@ -398,7 +447,7 @@ const ManageMedicines = () => {
                   <td className="p-3 border font-medium">{med.name}</td>
                   <td className="p-3 border">{med.genericName}</td>
                   <td className="p-3 border text-sm">{med.description}</td>
-                  <td className="p-3 border">{med.category}</td>
+                  <td className="p-3 border">{getCategoryName(med.category)}</td>
                   <td className="p-3 border">{med.company}</td>
                   <td className="p-3 border">{med.massUnit}</td>
                   <td className="p-3 border">৳{med.price}</td>
@@ -461,7 +510,7 @@ const ManageMedicines = () => {
         </div>
       )}
 
-      {/* Add Medicine Modal (same as before) */}
+      {/* Add Medicine Modal */}
       {showModal && (
         <div className="fixed inset-0 bg-black bg-opacity-40 flex justify-center items-center z-50">
           <div className="bg-white p-6 rounded shadow-md w-full max-w-lg relative max-h-[90vh] overflow-auto">
@@ -553,30 +602,39 @@ const ManageMedicines = () => {
 
               <div>
                 <label className="block font-semibold mb-1">Category *</label>
-                <input
-                  type="text"
-                  name="category"
+                <select
                   value={newMedicine.category}
-                  onChange={handleChange}
+                  onChange={handleCategoryChange}
                   required
                   disabled={submitting}
-                  placeholder="e.g., Pain Relief, Antibiotic"
                   className="w-full border px-3 py-2 rounded disabled:bg-gray-100"
-                />
+                >
+                  <option value="">Select Category</option>
+                  {categories.map((category) => (
+                    <option key={category._id} value={category._id}>
+                      {category.name}
+                    </option>
+                  ))}
+                </select>
               </div>
 
               <div>
                 <label className="block font-semibold mb-1">Company *</label>
-                <input
-                  type="text"
+                <select
                   name="company"
                   value={newMedicine.company}
                   onChange={handleChange}
                   required
                   disabled={submitting}
-                  placeholder="e.g., Beximco Pharma"
                   className="w-full border px-3 py-2 rounded disabled:bg-gray-100"
-                />
+                >
+                  <option value="">Select Company</option>
+                  {staticCompanies.map((company) => (
+                    <option key={company} value={company}>
+                      {company}
+                    </option>
+                  ))}
+                </select>
               </div>
 
               <div>

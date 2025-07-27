@@ -3,51 +3,102 @@ import { NavLink, Link, useNavigate } from "react-router-dom";
 import { FaCartShopping } from "react-icons/fa6";
 import { IoMdArrowDropdown } from "react-icons/io";
 import logo from "../assets/medimart.png";
-import axios from "axios";
 import useAxiosSecure from "./hook/useAxiosSecure";
 import { AuthContext } from "../context/AuthContext";
-
+import {jwtDecode} from "jwt-decode";
 
 const Navbar = () => {
-  const {  signOutUser } = useContext(AuthContext) || {};
-  const [user,setUser]= useState(null); 
+  const { signOutUser } = useContext(AuthContext) || {};
+  const [user, setUser] = useState(null);
   const [error, setError] = useState(null);
+  const [cartItemCount, setCartItemCount] = useState(0);
   const navigate = useNavigate();
   const token = localStorage.getItem("accessToken");
-  const axiosSecure=useAxiosSecure()
+  const axiosSecure = useAxiosSecure();
 
   console.log(user);
-const fetchUser = async () => {
-  try {
-    const response = await axios.get("http://localhost:5000/profile", {
-      headers: {
-        "Content-Type": "application/json", 
-        Authorization: token,
-      },
-    });
 
-    console.log(response);
-
-    const result = response.data;
-
-    if (result.success) {
-      setUser(result.data);
-    } else {
-      setError(result.message || "Failed to fetch user data");
+    let decodedToken = null;
+  if (token) {
+    try {
+      decodedToken = jwtDecode(token);
+      console.log("Decoded Token:", decodedToken);
+    } catch (error) {
+      console.error("Invalid token:", error.message);
     }
-  } catch (err) {
-    setError(
-      "Error connecting to server: " +
-        (err.response?.data?.message || err.message)
-    );
-    console.error("Axios fetch error:", err);
   }
-};
 
-useEffect(() => {
-  fetchUser();
-}, []);
-  console.log(user)
+  useEffect(()=>{
+    fetchUser()
+  },[])
+
+  const fetchUser = async () => {
+    try {
+      const response = await axiosSecure.get("/profile");
+
+      console.log(response);
+
+      const result = response.data;
+
+      if (result.success) {
+        setUser(result.data);
+      } else {
+        setError(result.message || "Failed to fetch user data");
+      }
+    } catch (err) {
+      setError(
+        "Error connecting to server: " +
+          (err.response?.data?.message || err.message)
+      );
+      console.error("Axios fetch error:", err);
+    }
+  };
+
+  const loadCartCount = () => {
+    try {
+      const savedCart = localStorage.getItem('medimart_cart');
+      if (savedCart) {
+        const parsedCart = JSON.parse(savedCart);
+        const totalItems = parsedCart.reduce((total, item) => total + item.quantity, 0);
+        setCartItemCount(totalItems);
+      } else {
+        setCartItemCount(0);
+      }
+    } catch (error) {
+      console.error('Error loading cart count:', error);
+      setCartItemCount(0);
+    }
+  };
+
+  useEffect(() => {
+    fetchUser();
+    loadCartCount();
+
+    // Listen for localStorage changes (when cart is updated)
+    const handleStorageChange = () => {
+      loadCartCount();
+    };
+
+    // Listen for custom cart update events
+    const handleCartUpdate = () => {
+      loadCartCount();
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+    window.addEventListener('cartUpdated', handleCartUpdate);
+
+    // Also check cart count periodically in case of same-tab updates
+    const interval = setInterval(loadCartCount, 1000);
+
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+      window.removeEventListener('cartUpdated', handleCartUpdate);
+      clearInterval(interval);
+    };
+  }, []);
+
+  console.log(user);
+
   const navLinks = (
     <>
       <NavLink
@@ -76,18 +127,25 @@ useEffect(() => {
         to="/cart"
         className={({ isActive }) =>
           isActive
-            ? "text-red-600 font-semibold"
-            : "text-gray-700 hover:text-red-600"
+            ? "text-red-600 font-semibold relative"
+            : "text-gray-700 hover:text-red-600 relative"
         }
       >
         <FaCartShopping className="text-xl" />
+        {cartItemCount > 0 && (
+          <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
+            {cartItemCount > 99 ? '99+' : cartItemCount}
+          </span>
+        )}
       </NavLink>
     </>
   );
 
   const handleLogout = async () => {
     try {
-      await signOutUser();          
+      await signOutUser();
+      // Clear cart on logout if desired
+      // localStorage.removeItem('medimart_cart');
       navigate("/login");
     } catch (err) {
       console.error("Logout failed:", err);
@@ -95,21 +153,55 @@ useEffect(() => {
   };
 
 
-  const handleDashboardClick = () => {
-    if (!user) return;
 
-    switch (user.role) {
+// const handleDashboardClick = () => {
+//   const token = localStorage.getItem("accessToken");
+//   if (!token) return;
+
+//   try {
+//     const decoded = jwtDecode(token);
+//     const role = decoded?.role;
+
+//     switch (role) {
+//       case "admin":
+//         navigate("/admin/home");
+//         break;
+//       case "seller":
+//         navigate("/seller/home");
+//         break;
+//       case "user":
+//       default:
+//         navigate("/user");
+//     }
+//   } catch (error) {
+//     console.error("Invalid token:", error);
+//   }
+// };
+
+
+const handleDashboardClick = () => {
+
+
+  try {
+   
+    const role = user?.role;
+
+    switch (role) {
       case "admin":
-        navigate("/admin");
+        navigate("/admin/home");
         break;
       case "seller":
-        navigate("/seller");
+        navigate("/seller/home");
         break;
       case "user":
       default:
         navigate("/user");
     }
-  };
+  } catch (error) {
+    console.error("Invalid token:", error);
+  }
+};
+
 
   return (
     <nav className="bg-white shadow-md">
@@ -145,7 +237,7 @@ useEffect(() => {
           </div>
 
           {/* Auth/Profile */}
-          {!user ? (
+          {!token ? (
             <Link
               to="/login"
               className="bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-700 transition"
@@ -156,15 +248,15 @@ useEffect(() => {
             <div className="dropdown dropdown-end">
               <label tabIndex={0} className="cursor-pointer">
                 <div className="w-10 h-10 rounded-full bg-gray-300 flex items-center justify-center overflow-hidden">
-                  {user.profilePicture ? (
+                  {user?.photo ? (
                     <img
-                      src={user.profilePicture}
+                      src={user?.photo}
                       alt="Profile"
                       className="w-full h-full object-cover"
                     />
                   ) : (
                     <span className="text-lg font-semibold">
-                      {user.email?.charAt(0).toUpperCase()}
+                      {user?.email?.charAt(0)?.toUpperCase()}
                     </span>
                   )}
                 </div>
@@ -174,7 +266,7 @@ useEffect(() => {
                 className="dropdown-content menu p-2 shadow bg-white rounded-box w-52"
               >
                 <li>
-                  <Link to="/profile">Update Profile</Link>
+                  <Link to="/update-profile">Update Profile</Link>
                 </li>
                 <li>
                   <button onClick={handleDashboardClick}>Dashboard</button>

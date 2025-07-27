@@ -3,6 +3,7 @@ import useAxiosSecure from '../../components/hook/useAxiosSecure';
 
 const ManageMedicines = () => {
   const [medicines, setMedicines] = useState([]);
+  const [filteredMedicines, setFilteredMedicines] = useState([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [showModal, setShowModal] = useState(false);
@@ -10,7 +11,7 @@ const ManageMedicines = () => {
     name: '',
     genericName: '',
     description: '',
-    image: null, // Change to null for file upload
+    image: null,
     category: '',
     company: '',
     massUnit: '',
@@ -20,10 +21,18 @@ const ManageMedicines = () => {
   });
   const [imagePreview, setImagePreview] = useState(null);
   const [error, setError] = useState('');
-  const token= localStorage.getItem('accessToken');
+  
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
+  
+  // Search and filter state
+  const [searchTerm, setSearchTerm] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState('all');
+  const [companyFilter, setCompanyFilter] = useState('all');
+  
+  const token = localStorage.getItem('accessToken');
   const axiosSecure = useAxiosSecure();
-
-  console.log(token);
 
   // ImgBB API configuration
   const IMGBB_API_KEY = 'ea59a5c9204f19d69a83ea436c243017';
@@ -61,30 +70,21 @@ const ManageMedicines = () => {
     fetchMedicines();
   }, []);
 
+  // Apply filters and search whenever medicines, searchTerm, or filters change
+  useEffect(() => {
+    filterMedicines();
+  }, [medicines, searchTerm, categoryFilter, companyFilter]);
+
   const fetchMedicines = async () => {
     try {
       setLoading(true);
       setError('');
       
-      const response = await fetch('http://localhost:5000/products', {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          // Add authorization header if needed
-          'Authorization': ` ${token}`
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to fetch medicines');
-      }
-
-      const result = await response.json();
-      
-      if (result.success) {
-        setMedicines(result.data);
+      const response = await axiosSecure.get('/products');
+      if (response.data.success) {
+        setMedicines(response.data.data);
       } else {
-        setError(result.message || 'Failed to fetch medicines');
+        setError(response.message || 'Failed to fetch medicines');
       }
     } catch (err) {
       setError('Error connecting to server: ' + err.message);
@@ -93,6 +93,38 @@ const ManageMedicines = () => {
       setLoading(false);
     }
   };
+
+  // Filter medicines based on search term and filters
+  const filterMedicines = () => {
+    let filtered = [...medicines];
+
+    // Apply search filter
+    if (searchTerm) {
+      const term = searchTerm.toLowerCase();
+      filtered = filtered.filter(med => 
+        (med.name && med.name.toLowerCase().includes(term)) || 
+        (med.genericName && med.genericName.toLowerCase().includes(term)) ||
+        (med.description && med.description.toLowerCase().includes(term))
+      );
+    }
+
+    // Apply company filter
+    if (companyFilter !== 'all') {
+      filtered = filtered.filter(med => med.company === companyFilter);
+    }
+
+    setFilteredMedicines(filtered);
+    setCurrentPage(1); // Reset to first page when filters change
+  };
+
+  // Get unique categories and companies for filter dropdowns
+  const getUniqueValues = (key) => {
+    const unique = [...new Set(medicines.map(item => item[key]))];
+    return unique.filter(item => item); // Remove empty/null values
+  };
+
+  const categories = getUniqueValues('category');
+  const companies = getUniqueValues('company');
 
   // Handle form field changes
   const handleChange = (e) => {
@@ -104,7 +136,6 @@ const ManageMedicines = () => {
   const handleImageChange = (e) => {
     const file = e.target.files[0];
     if (file) {
-      // Validate file type
       const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
       if (!validTypes.includes(file.type)) {
         alert('Please select a valid image file (JPEG, PNG, GIF, WebP)');
@@ -112,7 +143,6 @@ const ManageMedicines = () => {
         return;
       }
 
-      // Validate file size (max 10MB)
       if (file.size > 10 * 1024 * 1024) {
         alert('Image size should be less than 10MB');
         e.target.value = '';
@@ -121,7 +151,6 @@ const ManageMedicines = () => {
 
       setNewMedicine(prev => ({ ...prev, image: file }));
       
-      // Create preview
       const reader = new FileReader();
       reader.onload = (e) => {
         setImagePreview(e.target.result);
@@ -133,106 +162,100 @@ const ManageMedicines = () => {
     }
   };
 
-  
+  const handleAddMedicine = async () => {
+    const {
+      name,
+      genericName,
+      description,
+      category,
+      company,
+      massUnit,
+      price,
+      stock,
+      discount,
+      image,
+    } = newMedicine;
 
-const handleAddMedicine = async () => {
-  const {
-    name,
-    genericName,
-    description,
-    category,
-    company,
-    massUnit,
-    price,
-    stock,
-    discount,
-    image,
-  } = newMedicine;
+    if (
+      !name.trim() ||
+      !genericName.trim() ||
+      !price ||
+      !massUnit.trim() ||
+      !category.trim() ||
+      !company.trim()
+    ) {
+      alert('Please fill all required fields correctly.');
+      return;
+    }
 
-  // Basic validation
-  if (
-    !name.trim() ||
-    !genericName.trim() ||
-    !price ||
-    !massUnit.trim() ||
-    !category.trim() ||
-    !company.trim()
-  ) {
-    alert('Please fill all required fields correctly.');
-    return;
-  }
+    if (price <= 0) {
+      alert('Price must be greater than 0');
+      return;
+    }
 
-  if (price <= 0) {
-    alert('Price must be greater than 0');
-    return;
-  }
+    setSubmitting(true);
+    setError('');
 
-  setSubmitting(true);
-  setError('');
+    try {
+      let imageUrl = '';
 
-  try {
-    let imageUrl = '';
-
-    // Upload image to imgbb
-    if (image) {
-      try {
-        setError('Uploading image...');
-        imageUrl = await uploadImageToImgBB(image);
-        setError('');
-      } catch (imageError) {
-        setError('Failed to upload image. Please try again.');
-        setSubmitting(false);
-        return;
+      if (image) {
+        try {
+          setError('Uploading image...');
+          imageUrl = await uploadImageToImgBB(image);
+          setError('');
+        } catch (imageError) {
+          setError('Failed to upload image. Please try again.');
+          setSubmitting(false);
+          return;
+        }
       }
+
+      const medicineData = {
+        name: name.trim(),
+        genericName: genericName.trim(),
+        description: description.trim(),
+        image: imageUrl,
+        category: category.trim(),
+        company: company.trim(),
+        massUnit: massUnit.trim(),
+        price: Number(price),
+        stock: stock ? Number(stock) : 0,
+        discount: Number(discount) || 0,
+      };
+
+      const { data } = await axiosSecure.post('/products', medicineData);
+
+      if (data?.success) {
+        await fetchMedicines();
+
+        setNewMedicine({
+          name: '',
+          genericName: '',
+          description: '',
+          image: null,
+          category: '',
+          company: '',
+          massUnit: '',
+          price: '',
+          stock: '',
+          discount: 0,
+        });
+
+        setImagePreview(null);
+        setShowModal(false);
+
+        alert('Medicine added successfully!');
+      } else {
+        setError(data?.message || 'Failed to add medicine');
+      }
+    } catch (err) {
+      setError('Error connecting to server: ' + err.message);
+      console.error('Add medicine error:', err);
+    } finally {
+      setSubmitting(false);
     }
-
-    const medicineData = {
-      name: name.trim(),
-      genericName: genericName.trim(),
-      description: description.trim(),
-      image: imageUrl,
-      category: category.trim(),
-      company: company.trim(),
-      massUnit: massUnit.trim(),
-      price: Number(price),
-      stock: stock ? Number(stock) : 0,
-      discount: Number(discount) || 0,
-    };
-
-    // 🔐 Use axiosSecure instead of fetch
-    const { data } = await axiosSecure.post('/products', medicineData);
-
-    if (data?.success) {
-      await fetchMedicines();
-
-      setNewMedicine({
-        name: '',
-        genericName: '',
-        description: '',
-        image: null,
-        category: '',
-        company: '',
-        massUnit: '',
-        price: '',
-        stock: '',
-        discount: 0,
-      });
-
-      setImagePreview(null);
-      setShowModal(false);
-
-      alert('Medicine added successfully!');
-    } else {
-      setError(data?.message || 'Failed to add medicine');
-    }
-  } catch (err) {
-    setError('Error connecting to server: ' + err.message);
-    console.error('Add medicine error:', err);
-  } finally {
-    setSubmitting(false);
-  }
-};
-
+  };
 
   const formatDate = (dateString) => {
     return new Date(dateString).toLocaleDateString('en-US', {
@@ -241,6 +264,14 @@ const handleAddMedicine = async () => {
       day: 'numeric',
     });
   };
+
+  // Pagination logic
+  const indexOfLastItem = currentPage * itemsPerPage;
+  const indexOfFirstItem = indexOfLastItem - itemsPerPage;
+  const currentItems = filteredMedicines.slice(indexOfFirstItem, indexOfLastItem);
+  const totalPages = Math.ceil(filteredMedicines.length / itemsPerPage);
+
+  const paginate = (pageNumber) => setCurrentPage(pageNumber);
 
   if (loading) {
     return (
@@ -263,6 +294,57 @@ const handleAddMedicine = async () => {
         >
           + Add Medicine
         </button>
+      </div>
+
+      {/* Search and Filter Section */}
+      <div className="mb-6 bg-white p-4 rounded shadow">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          {/* Search Input */}
+          <div>
+            <label className="block font-semibold mb-1">Search</label>
+            <input
+              type="text"
+              placeholder="Search by name, generic or description"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full border px-3 py-2 rounded"
+            />
+          </div>
+
+       
+
+          {/* Company Filter */}
+          <div>
+            <label className="block font-semibold mb-1">Company</label>
+            <select
+              value={companyFilter}
+              onChange={(e) => setCompanyFilter(e.target.value)}
+              className="w-full border px-3 py-2 rounded"
+            >
+              <option value="all">All Companies</option>
+              {companies.map((company) => (
+                <option key={company} value={company}>
+                  {company}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Items per page */}
+          {/* <div>
+            <label className="block font-semibold mb-1">Items per page</label>
+            <select
+              value={itemsPerPage}
+              onChange={(e) => setItemsPerPage(Number(e.target.value))}
+              className="w-full border px-3 py-2 rounded"
+            >
+              <option value="5">5</option>
+              <option value="10">10</option>
+              <option value="20">20</option>
+              <option value="50">50</option>
+            </select>
+          </div> */}
+        </div>
       </div>
 
       {error && (
@@ -290,14 +372,14 @@ const handleAddMedicine = async () => {
             </tr>
           </thead>
           <tbody>
-            {medicines.length === 0 ? (
+            {currentItems.length === 0 ? (
               <tr>
                 <td colSpan="11" className="text-center p-4 text-gray-500">
-                  No medicines found.
+                  No medicines found matching your criteria.
                 </td>
               </tr>
             ) : (
-              medicines.map(med => (
+              currentItems.map(med => (
                 <tr key={med._id} className="border-t hover:bg-blue-50">
                   <td className="p-2 border">
                     {med.image ? (
@@ -330,7 +412,56 @@ const handleAddMedicine = async () => {
         </table>
       </div>
 
-      {/* Add Medicine Modal */}
+      {/* Pagination */}
+      {filteredMedicines.length > 0 && (
+        <div className="flex justify-between items-center mt-4">
+          <div className="text-sm text-gray-600">
+            Showing {indexOfFirstItem + 1} to {Math.min(indexOfLastItem, filteredMedicines.length)} of {filteredMedicines.length} medicines
+          </div>
+          <div className="flex space-x-1">
+            <button
+              onClick={() => paginate(Math.max(1, currentPage - 1))}
+              disabled={currentPage === 1}
+              className="px-3 py-1 border rounded disabled:opacity-50"
+            >
+              Previous
+            </button>
+            
+            {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+              let pageNum;
+              if (totalPages <= 5) {
+                pageNum = i + 1;
+              } else if (currentPage <= 3) {
+                pageNum = i + 1;
+              } else if (currentPage >= totalPages - 2) {
+                pageNum = totalPages - 4 + i;
+              } else {
+                pageNum = currentPage - 2 + i;
+              }
+              
+              return (
+                <button
+                  key={pageNum}
+                  onClick={() => paginate(pageNum)}
+                  className={`px-3 py-1 border rounded ${currentPage === pageNum ? 'bg-blue-600 text-white' : ''}`}
+                >
+                  {pageNum}
+                </button>
+              );
+            })}
+
+            <button
+              onClick={() => paginate(Math.min(totalPages, currentPage + 1))}
+              disabled={currentPage === totalPages}
+              className="px-3 py-1 border rounded disabled:opacity-50"
+            >
+              Next
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Add Medicine Modal (same as before) */}
       {showModal && (
         <div className="fixed inset-0 bg-black bg-opacity-40 flex justify-center items-center z-50">
           <div className="bg-white p-6 rounded shadow-md w-full max-w-lg relative max-h-[90vh] overflow-auto">
@@ -339,7 +470,6 @@ const handleAddMedicine = async () => {
                 setShowModal(false);
                 setImagePreview(null);
                 setError('');
-                // Reset file input
                 const fileInput = document.getElementById('imageInput');
                 if (fileInput) fileInput.value = '';
               }}

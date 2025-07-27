@@ -1,52 +1,49 @@
 import React, { useState, useEffect } from 'react';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import useAxiosSecure from '../../components/hook/useAxiosSecure';
 
 const SalesReport = () => {
   const [sales, setSales] = useState([]);
   const [filteredSales, setFilteredSales] = useState([]);
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const axiosSecure = useAxiosSecure();
 
   useEffect(() => {
-    // Dummy sales data
-    const dummyData = [
-      {
-        id: '1',
-        medicineName: 'Paracetamol',
-        sellerEmail: 'seller1@example.com',
-        buyerEmail: 'buyer1@example.com',
-        totalPrice: 150,
-        date: '2025-07-15',
-      },
-      {
-        id: '2',
-        medicineName: 'Vitamin C',
-        sellerEmail: 'seller2@example.com',
-        buyerEmail: 'buyer2@example.com',
-        totalPrice: 200,
-        date: '2025-07-17',
-      },
-      {
-        id: '3',
-        medicineName: 'Cough Syrup',
-        sellerEmail: 'seller3@example.com',
-        buyerEmail: 'buyer3@example.com',
-        totalPrice: 120,
-        date: '2025-07-12',
-      },
-      {
-        id: '4',
-        medicineName: 'Ibuprofen',
-        sellerEmail: 'seller5@example.com',
-        buyerEmail: 'buyer4@example.com',
-        totalPrice: 180,
-        date: '2025-07-10',
-      },
-    ];
-    setSales(dummyData);
-    setFilteredSales(dummyData);
+    fetchPayments();
   }, []);
+
+  const fetchPayments = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const response = await axiosSecure.get("/payments");
+
+      if (response.data.success) {
+        // Format the fetched data to match table structure
+        const formattedData = response.data.data.map((payment) => ({
+          id: payment._id,
+          medicineName: payment.orderId || 'N/A', // placeholder since medicineName not provided
+          sellerEmail: 'N/A', // seller info not present in payment
+          buyerEmail: payment.user?.email || 'N/A',
+          totalPrice: payment.amount,
+          date: payment.createdAt ? payment.createdAt.slice(0, 10) : 'N/A',
+        }));
+
+        setSales(formattedData);
+        setFilteredSales(formattedData);
+      } else {
+        setError("Failed to fetch payments");
+      }
+    } catch (err) {
+      setError("Error fetching payments: " + err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const filterByDate = () => {
     let filtered = sales;
@@ -60,7 +57,7 @@ const SalesReport = () => {
   };
 
   const exportCSV = () => {
-    const header = ['Medicine Name', 'Seller Email', 'Buyer Email', 'Total Price', 'Date'];
+    const header = ['Order ID', 'Seller Email', 'Buyer Email', 'Total Price', 'Date'];
     const rows = filteredSales.map(s => [
       s.medicineName,
       s.sellerEmail,
@@ -87,7 +84,7 @@ const SalesReport = () => {
 
     doc.text('Sales Report', 14, 15);
 
-    const columns = ['Medicine Name', 'Seller Email', 'Buyer Email', 'Total Price', 'Date'];
+    const columns = ['Order ID', 'Seller Email', 'Buyer Email', 'Total Price', 'Date'];
     const rows = filteredSales.map(sale => [
       sale.medicineName,
       sale.sellerEmail,
@@ -151,12 +148,16 @@ const SalesReport = () => {
         </button>
       </div>
 
+      {error && (
+        <div className="text-red-500 text-center mb-4">{error}</div>
+      )}
+
       <div className="overflow-x-auto border rounded">
         <table className="min-w-full bg-white">
           <thead className="bg-red-100 text-gray-700">
             <tr>
-              <th className="p-3 border">Medicine Name</th>
-              <th className="p-3 border">Seller Email</th>
+              <th className="p-3 border">Order ID</th>
+              {/* <th className="p-3 border">Seller Email</th> */}
               <th className="p-3 border">Buyer Email</th>
               <th className="p-3 border">Total Price ($)</th>
               <th className="p-3 border">Date</th>
@@ -173,7 +174,7 @@ const SalesReport = () => {
               filteredSales.map(sale => (
                 <tr key={sale.id} className="border-t hover:bg-red-50">
                   <td className="p-3 border">{sale.medicineName}</td>
-                  <td className="p-3 border">{sale.sellerEmail}</td>
+                  {/* <td className="p-3 border">{sale.sellerEmail}</td> */}
                   <td className="p-3 border">{sale.buyerEmail}</td>
                   <td className="p-3 border text-right">{sale.totalPrice}</td>
                   <td className="p-3 border">{sale.date}</td>
